@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>配方管理 - 比相/时延测量上位机</title>
+    <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+<header>
+    <div style="font-size:18px;font-weight:700;">比相/时延测量上位机</div>
+    <nav>
+        <a href="/ui/devices">设备状态</a>
+        <a href="/ui/recipes">配方管理</a>
+        <a href="/ui/run">一键测量</a>
+    </nav>
+    <span class="muted">Recipe 落盘: ./data/recipes/{recipeId}.json</span>
+</header>
+
+<div class="grid" style="grid-template-columns: 320px 1fr;">
+    <div class="card">
+        <div style="font-weight:700;margin-bottom:8px;">配方列表</div>
+        <div class="row">
+            <select id="recipeSelect" style="width:100%"></select>
+        </div>
+        <div class="row" style="margin-top:8px;">
+            <button class="primary" onclick="loadRecipe()">加载</button>
+            <button onclick="newRecipe()">新建</button>
+            <button class="danger" onclick="deleteRecipe()">删除</button>
+        </div>
+        <div class="muted" style="margin-top:10px;">
+            提示：此页采用“JSON编辑”方式，字段名严格对齐后端领域模型。
+            （新增：`mainConfig.ddsFreqHz` 支持DDS频率控制字，单位Hz，仅主站MAIN生效；relayConfig同字段会被忽略但不报错。）
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="row" style="justify-content: space-between;">
+            <div style="font-weight:700;">配方JSON</div>
+            <div class="row">
+                <button class="primary" onclick="saveRecipe()">保存/覆盖</button>
+                <button onclick="formatJson()">格式化</button>
+            </div>
+        </div>
+        <textarea id="recipeJson"></textarea>
+        <div id="msg" class="muted" style="margin-top:8px;"></div>
+    </div>
+</div>
+
+<script>
+    const defaultRecipe = {
+        recipeId: "RCP-NEW",
+        name: "新建配方",
+        mainConfig: {txEnable: true, referencePathDelayNs: 120.0, measurePathDelayNs: 180.0},
+        relayConfig: {txEnable: true, referencePathDelayNs: 95.0, measurePathDelayNs: 130.0},
+        linkModel: {fixedLinkDelayNs: 800.0, driftPpm: 0.2, noiseStdNs: 0.5, basePhaseDeg: 15.0},
+        measurementPlan: {modes: ["LINK", "MAIN_INTERNAL", "RELAY_INTERNAL"], repeat: 8},
+        simulatorProfile: null
+    };
+
+    function setMsg(text) { document.getElementById('msg').textContent = text; }
+
+    async function refreshList() {
+        const res = await fetch('/api/recipes');
+        const body = await res.json();
+        const sel = document.getElementById('recipeSelect');
+        sel.innerHTML = '';
+        (body.data || []).forEach(id => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = id;
+            sel.appendChild(opt);
+        });
+    }
+
+    async function loadRecipe() {
+        const id = document.getElementById('recipeSelect').value;
+        if (!id) return;
+        const res = await fetch(`/api/recipes/${id}`);
+        const body = await res.json();
+        if (!body.success) { setMsg(body.message); return; }
+        document.getElementById('recipeJson').value = JSON.stringify(body.data, null, 2);
+        setMsg('已加载: ' + id);
+    }
+
+    function newRecipe() {
+        document.getElementById('recipeJson').value = JSON.stringify(defaultRecipe, null, 2);
+        setMsg('已生成新建模板');
+    }
+
+    function formatJson() {
+        try {
+            const obj = JSON.parse(document.getElementById('recipeJson').value);
+            document.getElementById('recipeJson').value = JSON.stringify(obj, null, 2);
+            setMsg('格式化完成');
+        } catch (e) {
+            setMsg('JSON解析失败: ' + e.message);
+        }
+    }
+
+    async function saveRecipe() {
+        try {
+            const obj = JSON.parse(document.getElementById('recipeJson').value);
+            const res = await fetch('/api/recipes', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(obj)
+            });
+            const body = await res.json();
+            if (!body.success) { setMsg(body.message); return; }
+            await refreshList();
+            setMsg('保存成功: ' + body.data.recipeId);
+        } catch (e) {
+            setMsg('保存失败: ' + e.message);
+        }
+    }
+
+    async function deleteRecipe() {
+        const id = document.getElementById('recipeSelect').value;
+        if (!id) return;
+        const res = await fetch(`/api/recipes/${id}`, {method: 'DELETE'});
+        const body = await res.json();
+        if (!body.success) { setMsg(body.message); return; }
+        await refreshList();
+        setMsg('已删除: ' + id);
+    }
+
+    refreshList().then(loadRecipe);
+</script>
+</body>
+</html>

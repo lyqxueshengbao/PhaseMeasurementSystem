@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>一键测量 - 比相/时延测量上位机</title>
+    <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+<header>
+    <div style="font-size:18px;font-weight:700;">比相/时延测量上位机</div>
+    <nav>
+        <a href="/ui/devices">设备状态</a>
+        <a href="/ui/recipes">配方管理</a>
+        <a href="/ui/run">一键测量</a>
+    </nav>
+    <span class="muted">Run 落盘: ./data/runs/{runId}/</span>
+</header>
+
+<div class="card">
+    <div class="row">
+        <div style="font-weight:700;">选择配方</div>
+        <select id="recipeSelect"></select>
+        <button class="primary" onclick="startRun()">开始</button>
+        <span class="muted">（流程：INIT→CHECK_DEVICES→APPLY_RECIPE→LOCK_START→WAIT_LOCKED→MEASURE→SUMMARY→DONE）</span>
+    </div>
+    <div class="row" style="margin-top:8px;">
+        <div>runId：</div>
+        <div id="runId" style="font-family: ui-monospace, Menlo, Consolas, monospace;">-</div>
+        <div style="margin-left:18px;">MAIN DDS(Hz)：</div>
+        <div id="mainDds" style="font-family: ui-monospace, Menlo, Consolas, monospace;">-</div>
+        <div style="margin-left:18px;">当前步骤：</div>
+        <div id="step" class="badge">-</div>
+        <div style="margin-left:18px;">状态：</div>
+        <div id="state" class="badge">-</div>
+        <a id="zipLink" href="#" style="margin-left:auto;display:none;">下载run.zip</a>
+    </div>
+</div>
+
+<div class="grid" style="margin-top:12px;">
+    <div class="card">
+        <div style="font-weight:700;margin-bottom:8px;">实时日志（SSE）</div>
+        <div id="log" class="log"></div>
+    </div>
+    <div class="card">
+        <div style="font-weight:700;margin-bottom:8px;">测量结果（每次repeat一条）</div>
+        <table>
+            <thead>
+            <tr>
+                <th>mode</th>
+                <th>repeatIndex</th>
+                <th>delayNs(ns)</th>
+                <th>phaseDeg(deg)</th>
+                <th>confidence</th>
+                <th>qualityFlag</th>
+            </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+        </table>
+        <div style="font-weight:700;margin-top:12px;">大气时延输出</div>
+        <div id="atmCard" class="card" style="margin-top:8px;background:#fff;">
+            <div class="muted">等待SUMMARY...</div>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top:12px;">
+    <div style="font-weight:700;margin-bottom:8px;">run目录文件</div>
+    <div id="files" class="muted">-</div>
+</div>
+
+<script>
+    let es = null;
+    let currentRunId = null;
+    let results = [];
+
+    function setBadge(id, text, cls) {
+        const el = document.getElementById(id);
+        el.className = cls || 'badge';
+        el.textContent = text;
+    }
+
+    function appendLog(line) {
+        const log = document.getElementById('log');
+        log.textContent += line + "\\n";
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function qualityClass(q) {
+        if (q === 'OK') return 'badge ok';
+        if (q === 'WARN') return 'badge warn';
+        if (q === 'BAD') return 'badge bad';
+        if (q === 'INVALID') return 'badge invalid';
+        return 'badge';
+    }
+
+    function renderResults() {
+        const tbody = document.getElementById('resultsBody');
+        tbody.innerHTML = '';
+        results.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${r.mode}</td>
+              <td>${r.repeatIndex}</td>
+              <td>${r.delayNs}</td>
+              <td>${r.phaseDeg}</td>
+              <td>${r.confidence}</td>
+              <td><span class="${qualityClass(r.qualityFlag)}">${r.qualityFlag}</span></td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function refreshRecipeList() {
+        const res = await fetch('/api/recipes');
+        const body = await res.json();
+        const sel = document.getElementById('recipeSelect');
+        sel.innerHTML = '';
+        (body.data || []).forEach(id => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = id;
+            sel.appendChild(opt);
+        });
+    }
+
+    async function startRun() {
+        if (es) { es.close(); es = null; }
+        results = [];
+        renderResults();
+        document.getElementById('log').textContent = '';
+        document.getElementById('atmCard').innerHTML = '<div class="muted">等待SUMMARY...</div>';
+        document.getElementById('files').textContent = '-';
+        document.getElementById('zipLink').style.display = 'none';
+
+        const recipeId = document.getElementById('recipeSelect').value;
+        const res = await fetch('/api/runs', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({recipeId})
+        });
+        const body = await res.json();
+        if (!body.success) {
+            appendLog('[ERROR] ' + body.message);
+            return;
+        }
+        currentRunId = body.data.runId;
+        document.getElementById('runId').textContent = currentRunId;
+        setBadge('state', 'RUNNING');
+        setBadge('step', 'INIT');
+        subscribeSse(currentRunId);
+    }
+
+    function subscribeSse(runId) {
+        es = new EventSource(`/api/sse/runs/${runId}`);
+        es.onmessage = (ev) => {}; // unused
+        es.addEventListener('LOG', ev => {
+            const env = JSON.parse(ev.data);
+            const p = env.payload || {};
+            appendLog(`[${env.seq}] ${p.step || '-'} ${p.message}`);
+        });
+        es.addEventListener('STEP', ev => {
+            const env = JSON.parse(ev.data);
+            const p = env.payload || {};
+            setBadge('step', p.step || '-', 'badge warn');
+        });
+        es.addEventListener('DEVICE_STATUS', ev => {
+            const env = JSON.parse(ev.data);
+            const s = env.payload || {};
+            // optional: could render separate device status, here we just log state changes
+        });
+        es.addEventListener('MEASUREMENT_RESULT', ev => {
+            const env = JSON.parse(ev.data);
+            const r = env.payload;
+            results.push(r);
+            renderResults();
+        });
+        es.addEventListener('ATMOSPHERIC_RESULT', ev => {
+            const env = JSON.parse(ev.data);
+            const a = env.payload;
+            const snap = a.inputsSnapshot || {};
+            const detail = JSON.stringify(snap, null, 2);
+            document.getElementById('atmCard').innerHTML = `
+              <div>status: <span class="badge ok">${a.status}</span></div>
+              <div style="margin-top:6px;">atmosphericDelayNs: <b>${a.atmosphericDelayNs}</b> ns</div>
+              <div>uncertaintyNs: ${a.uncertaintyNs} ns</div>
+              <div class="muted">formulaVersion: ${a.formulaVersion}</div>
+              <pre class="muted" style="white-space:pre-wrap;margin-top:8px;">${detail}</pre>`;
+        });
+        es.addEventListener('DONE', async ev => {
+            const env = JSON.parse(ev.data);
+            setBadge('state', 'SUCCEEDED', 'badge ok');
+            setBadge('step', 'DONE', 'badge ok');
+            await refreshFiles(runId);
+            await refreshRunInfo(runId);
+            es.close();
+        });
+        es.addEventListener('FAILED', async ev => {
+            const env = JSON.parse(ev.data);
+            const p = env.payload || {};
+            setBadge('state', 'FAILED', 'badge bad');
+            setBadge('step', 'FAILED', 'badge bad');
+            appendLog(`[FAILED] ${p.errorCode || ''} ${p.message || ''}`);
+            try {
+                const res = await fetch(`/api/runs/${runId}/atmospheric_delay`);
+                const body = await res.json();
+                const data = body.data || {};
+                document.getElementById('atmCard').innerHTML = `
+                  <div class="bad">运行失败：${body.message || p.message || ''}</div>
+                  <pre class="muted" style="white-space:pre-wrap;margin-top:8px;">${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (e) {
+                document.getElementById('atmCard').innerHTML = `<div class="bad">运行失败：${p.message || ''}</div>`;
+            }
+            await refreshFiles(runId);
+            await refreshRunInfo(runId);
+            es.close();
+        });
+        es.onerror = (e) => {
+            // allow refresh
+        };
+    }
+
+    async function refreshFiles(runId) {
+        const res = await fetch(`/api/runs/${runId}/files`);
+        const body = await res.json();
+        if (!body.success) return;
+        const files = body.data || {};
+        const lines = Object.entries(files).map(([k, v]) => `${k} (${v} bytes)`).join('，');
+        document.getElementById('files').textContent = lines || '-';
+        const zip = document.getElementById('zipLink');
+        zip.href = `/api/runs/${runId}/archive`;
+        zip.style.display = 'inline';
+    }
+
+    async function refreshRunInfo(runId) {
+        try {
+            const res = await fetch(`/api/runs/${runId}`);
+            const body = await res.json();
+            const cfg = (body.data || {}).mainAppliedConfig || {};
+            const hz = cfg.ddsFreqHz;
+            document.getElementById('mainDds').textContent = (hz === null || hz === undefined) ? '-' : hz;
+        } catch (e) {
+            document.getElementById('mainDds').textContent = '-';
+        }
+    }
+
+    refreshRecipeList();
+</script>
+</body>
+</html>

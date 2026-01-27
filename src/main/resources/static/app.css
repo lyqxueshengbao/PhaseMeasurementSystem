@@ -1,0 +1,21 @@
+body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; margin: 16px; color: #1d2433; }
+header { display: flex; gap: 12px; align-items: baseline; margin-bottom: 16px; }
+header a { color: #1b4dd6; text-decoration: none; margin-right: 10px; }
+header a:hover { text-decoration: underline; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.card { border: 1px solid #d9dde5; border-radius: 8px; padding: 12px; background: #fafbff; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+button { padding: 6px 10px; border: 1px solid #c8cfdd; background: #fff; border-radius: 6px; cursor: pointer; }
+button.primary { background: #1b4dd6; border-color: #1b4dd6; color: #fff; }
+button.danger { background: #b42318; border-color: #b42318; color: #fff; }
+select, input, textarea { border: 1px solid #c8cfdd; border-radius: 6px; padding: 6px; }
+textarea { width: 100%; min-height: 340px; font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid #e6e8ef; padding: 6px 8px; text-align: left; }
+.muted { color: #5b6476; font-size: 12px; }
+.log { width: 100%; min-height: 240px; max-height: 360px; overflow: auto; background: #0b1020; color: #e8ecff; padding: 10px; border-radius: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #eef2ff; border: 1px solid #d9dde5; }
+.ok { background: #ecfdf3; border-color: #a6f4c5; }
+.warn { background: #fffaeb; border-color: #fedf89; }
+.bad { background: #fff1f3; border-color: #fecdd6; }
+.invalid { background: #f2f4f7; border-color: #d0d5dd; }

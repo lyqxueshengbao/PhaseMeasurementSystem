@@ -1,0 +1,23 @@
+package com.example.pj125.common;
+
+public enum ErrorCode {
+    OK,
+    VALIDATION_ERROR,
+    NOT_FOUND,
+
+    DEVICE_OFFLINE,
+    DEVICE_BUSY,
+    DEVICE_ERROR,
+
+    LOCK_TIMEOUT,
+    LOCK_LOST,
+    APPLY_FAILED,
+
+    MEASUREMENT_FAILED,
+    ATMOSPHERIC_FAILED,
+    ORCHESTRATOR_RUNNING,
+
+    PERSIST_FAILED,
+    INTERNAL_ERROR
+}
+

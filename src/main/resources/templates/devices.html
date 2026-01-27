@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>设备状态 - 比相/时延测量上位机</title>
+    <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+<header>
+    <div style="font-size:18px;font-weight:700;">比相/时延测量上位机</div>
+    <nav>
+        <a href="/ui/devices">设备状态</a>
+        <a href="/ui/recipes">配方管理</a>
+        <a href="/ui/run">一键测量</a>
+    </nav>
+    <span class="muted">后端端口 8080，数据目录 ./data</span>
+</header>
+
+<div class="grid">
+    <div class="card">
+        <div class="row">
+            <div style="font-weight:700;">主站 (MAIN)</div>
+            <span id="mainBadge" class="badge">-</span>
+        </div>
+        <table>
+            <tbody id="mainTbody"></tbody>
+        </table>
+        <div class="row" style="margin-top:8px;">
+            <button class="primary" onclick="connect('MAIN')">连接</button>
+            <button onclick="disconnect('MAIN')">断开</button>
+            <button class="danger" onclick="safe('MAIN')">进入SAFE</button>
+        </div>
+    </div>
+    <div class="card">
+        <div class="row">
+            <div style="font-weight:700;">转发站 (RELAY)</div>
+            <span id="relayBadge" class="badge">-</span>
+        </div>
+        <table>
+            <tbody id="relayTbody"></tbody>
+        </table>
+        <div class="row" style="margin-top:8px;">
+            <button class="primary" onclick="connect('RELAY')">连接</button>
+            <button onclick="disconnect('RELAY')">断开</button>
+            <button class="danger" onclick="safe('RELAY')">进入SAFE</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function badgeClass(opState, lockState) {
+        if (opState === 'ERROR' || lockState === 'LOST') return 'badge bad';
+        if (opState === 'BUSY' || lockState === 'LOCKING') return 'badge warn';
+        if (opState === 'READY' && lockState === 'LOCKED') return 'badge ok';
+        return 'badge';
+    }
+
+    function kv(tbody, k, v) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<th style="width:140px">${k}</th><td>${v ?? '-'}</td>`;
+        tbody.appendChild(tr);
+    }
+
+    async function refresh() {
+        const res = await fetch('/api/devices');
+        const body = await res.json();
+        if (!body.success) return;
+
+        const main = body.data.MAIN;
+        const relay = body.data.RELAY;
+
+        render('main', main);
+        render('relay', relay);
+    }
+
+    function render(prefix, s) {
+        const badge = document.getElementById(prefix + 'Badge');
+        badge.className = badgeClass(s.opState, s.lockState);
+        badge.textContent = `${s.opState}/${s.lockState}`;
+
+        const tbody = document.getElementById(prefix + 'Tbody');
+        tbody.innerHTML = '';
+        kv(tbody, 'connected', s.connected);
+        kv(tbody, 'opState', s.opState);
+        kv(tbody, 'lockState', s.lockState);
+        kv(tbody, 'temperatureC', s.temperatureC);
+        kv(tbody, 'alarms', (s.alarms || []).join('，') || '-');
+        kv(tbody, 'version', s.version);
+        kv(tbody, 'lastUpdatedTs', s.lastUpdatedTs);
+        kv(tbody, 'lastErrorCode', s.lastErrorCode);
+        kv(tbody, 'lastErrorMessage', s.lastErrorMessage);
+    }
+
+    async function connect(id) {
+        await fetch(`/api/devices/${id}/connection`, {method: 'POST'});
+        await refresh();
+    }
+
+    async function disconnect(id) {
+        await fetch(`/api/devices/${id}/connection`, {method: 'DELETE'});
+        await refresh();
+    }
+
+    async function safe(id) {
+        await fetch(`/api/devices/${id}/safe`, {method: 'POST'});
+        await refresh();
+    }
+
+    refresh();
+    setInterval(refresh, 1000);
+</script>
+</body>
+</html>
+

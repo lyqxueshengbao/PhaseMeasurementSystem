@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+app:
+  data-dir: ./data
+
+simulator:
+  applyDelayMs: 300
+  lockTimeMs: 1200
+  measurementTimeMs: 800
+  fault:
+    type: NONE # NONE | LOCK_TIMEOUT | DEVICE_BUSY | RANDOM_LOST_LOCK
+    randomLostLockProbability: 0.5
+  waitLockedTimeoutMs: 5000
+
+pj125:
+  devices:
+    main:
+      endpoint: local-sim
+    relay:
+      endpoint: local-sim
