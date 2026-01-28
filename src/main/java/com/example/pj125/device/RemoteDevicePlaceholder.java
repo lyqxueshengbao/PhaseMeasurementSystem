@@ -106,6 +106,7 @@ public class RemoteDevicePlaceholder implements Device {
         c.setLastUpdatedTs(s.getLastUpdatedTs());
         c.setLastErrorCode(s.getLastErrorCode());
         c.setLastErrorMessage(s.getLastErrorMessage());
+        c.setRttMs(s.getRttMs());
         return c;
     }
 }

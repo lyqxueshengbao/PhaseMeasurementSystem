@@ -77,11 +77,14 @@
     function render(prefix, s) {
         const badge = document.getElementById(prefix + 'Badge');
         badge.className = badgeClass(s.opState, s.lockState);
-        badge.textContent = `${s.opState}/${s.lockState}`;
+        const online = s.connected ? '在线' : '离线';
+        const rtt = (s.rttMs === null || s.rttMs === undefined) ? '-' : `${s.rttMs}ms`;
+        badge.textContent = `${online}（${rtt}） ${s.opState}/${s.lockState}`;
 
         const tbody = document.getElementById(prefix + 'Tbody');
         tbody.innerHTML = '';
         kv(tbody, 'connected', s.connected);
+        kv(tbody, 'rttMs', s.rttMs);
         kv(tbody, 'opState', s.opState);
         kv(tbody, 'lockState', s.lockState);
         kv(tbody, 'temperatureC', s.temperatureC);
@@ -112,4 +115,3 @@
 </script>
 </body>
 </html>
-

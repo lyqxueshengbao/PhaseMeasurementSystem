@@ -22,6 +22,7 @@ mvn spring-boot:run
 ## 关键约定（必须口径）
 
 - 设备状态：`opState` + `lockState` 两维（不混用单一 state）
+- 设备心跳/延迟：`GET /api/devices` / `GET /api/devices/{deviceId}/status` 额外返回 `rttMs`（上位机探测往返耗时，ms，可为 null）
 - 测量结果每条 repeat 必有字段：
   - `ts` (ISO-8601)
   - `delayNs` (ns)

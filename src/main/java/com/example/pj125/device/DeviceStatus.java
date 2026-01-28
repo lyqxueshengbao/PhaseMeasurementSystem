@@ -26,6 +26,12 @@ public class DeviceStatus {
     private String lastErrorCode;
     private String lastErrorMessage;
 
+    /**
+     * Optional: round-trip time measured by gateway when probing device status (ms).
+     * Null means not measured.
+     */
+    private Long rttMs;
+
     public DeviceId getDeviceId() {
         return deviceId;
     }
@@ -105,5 +111,12 @@ public class DeviceStatus {
     public void setLastErrorMessage(String lastErrorMessage) {
         this.lastErrorMessage = lastErrorMessage;
     }
-}
 
+    public Long getRttMs() {
+        return rttMs;
+    }
+
+    public void setRttMs(Long rttMs) {
+        this.rttMs = rttMs;
+    }
+}

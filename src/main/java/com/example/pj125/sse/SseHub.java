@@ -18,61 +18,76 @@ public class SseHub {
     private final Map<String, CopyOnWriteArrayList<SseEmitter>> emitters = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> seqs = new ConcurrentHashMap<>();
     private final Map<String, CopyOnWriteArrayList<SseEnvelope>> history = new ConcurrentHashMap<>();
+    private final Map<String, Object> locks = new ConcurrentHashMap<>();
+
+    private Object lockFor(String runId) {
+        return locks.computeIfAbsent(runId, k -> new Object());
+    }
 
     public SseEmitter subscribe(String runId) {
         SseEmitter emitter = new SseEmitter(0L);
-        emitters.computeIfAbsent(runId, k -> new CopyOnWriteArrayList<>()).add(emitter);
 
         emitter.onCompletion(() -> remove(runId, emitter));
         emitter.onTimeout(() -> remove(runId, emitter));
         emitter.onError(e -> remove(runId, emitter));
 
-        // replay
-        List<SseEnvelope> h = history.get(runId);
-        if (h != null) {
-            for (SseEnvelope env : h) {
-                safeSend(emitter, env);
-            }
-            // If already finished, close connection after replaying terminal event.
-            if (!h.isEmpty()) {
-                String last = h.get(h.size() - 1).getType();
-                if (SseEventType.DONE.name().equals(last) || SseEventType.FAILED.name().equals(last)) {
-                    try {
-                        emitter.complete();
-                    } catch (Exception ignored) {
+        Object lock = lockFor(runId);
+        synchronized (lock) {
+            // replay before registering emitter to avoid duplicates/out-of-order
+            List<SseEnvelope> h = history.get(runId);
+            if (h != null) {
+                for (SseEnvelope env : h) {
+                    safeSend(emitter, env);
+                }
+                if (!h.isEmpty()) {
+                    String last = h.get(h.size() - 1).getType();
+                    if (SseEventType.DONE.name().equals(last) || SseEventType.FAILED.name().equals(last)) {
+                        try {
+                            emitter.complete();
+                        } catch (Exception ignored) {
+                        }
+                        return emitter;
                     }
                 }
             }
+            emitters.computeIfAbsent(runId, k -> new CopyOnWriteArrayList<>()).add(emitter);
         }
         return emitter;
     }
 
     public void publish(String runId, SseEventType type, Object payload) {
-        SseEnvelope env = new SseEnvelope();
-        env.setType(type.name());
-        env.setRunId(runId);
-        env.setTs(OffsetDateTime.now().toString());
-        env.setSeq(seqs.computeIfAbsent(runId, k -> new AtomicLong(0)).incrementAndGet());
-        env.setPayload(payload);
+        Object lock = lockFor(runId);
+        synchronized (lock) {
+            SseEnvelope env = new SseEnvelope();
+            env.setType(type.name());
+            env.setRunId(runId);
+            env.setTs(OffsetDateTime.now().toString());
+            env.setSeq(seqs.computeIfAbsent(runId, k -> new AtomicLong(0)).incrementAndGet());
+            env.setPayload(payload);
 
-        CopyOnWriteArrayList<SseEnvelope> h = history.computeIfAbsent(runId, k -> new CopyOnWriteArrayList<>());
-        h.add(env);
-        // prevent unbounded memory (best-effort)
-        if (h.size() > 5000) {
-            for (int i = 0; i < 1000 && !h.isEmpty(); i++) {
-                h.remove(0);
+            CopyOnWriteArrayList<SseEnvelope> h = history.computeIfAbsent(runId, k -> new CopyOnWriteArrayList<>());
+            h.add(env);
+            // prevent unbounded memory (best-effort)
+            if (h.size() > 5000) {
+                for (int i = 0; i < 1000 && !h.isEmpty(); i++) {
+                    h.remove(0);
+                }
             }
-        }
 
-        CopyOnWriteArrayList<SseEmitter> list = emitters.get(runId);
-        if (list == null) return;
-        for (SseEmitter e : list) {
-            safeSend(e, env);
+            CopyOnWriteArrayList<SseEmitter> list = emitters.get(runId);
+            if (list == null) return;
+            for (SseEmitter e : list) {
+                safeSend(e, env);
+            }
         }
     }
 
     public void closeRun(String runId) {
-        CopyOnWriteArrayList<SseEmitter> list = emitters.remove(runId);
+        CopyOnWriteArrayList<SseEmitter> list;
+        Object lock = lockFor(runId);
+        synchronized (lock) {
+            list = emitters.remove(runId);
+        }
         if (list == null) return;
         for (SseEmitter e : list) {
             try {
@@ -80,6 +95,7 @@ public class SseHub {
             } catch (Exception ignored) {
             }
         }
+        locks.remove(runId);
     }
 
     private void remove(String runId, SseEmitter emitter) {

@@ -10,6 +10,14 @@ public interface Device {
     DeviceStatus status();
 
     /**
+     * Lightweight liveness probe. Default is to reuse {@link #status()}.
+     * Remote implementations may override to provide an actual ping/heartbeat call.
+     */
+    default DeviceStatus ping() {
+        return status();
+    }
+
+    /**
      * Read back the current effective config. For devices that don't support it, returns null.
      */
     default DeviceConfig readbackConfig() {

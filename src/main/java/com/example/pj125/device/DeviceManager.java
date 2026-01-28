@@ -1,6 +1,7 @@
 package com.example.pj125.device;
 
 import com.example.pj125.common.HashUtils;
+import com.example.pj125.common.ErrorCode;
 import com.example.pj125.common.SimulatorProperties;
 import com.example.pj125.measurement.MeasurementMode;
 import com.example.pj125.recipe.SimulatorProfile;
@@ -45,7 +46,22 @@ public class DeviceManager implements DeviceGateway, FaultInjectionCapability {
     public Map<DeviceId, DeviceStatus> statuses() {
         Map<DeviceId, DeviceStatus> m = new LinkedHashMap<>();
         for (Map.Entry<DeviceId, Device> e : devices.entrySet()) {
-            m.put(e.getKey(), e.getValue().status());
+            long startNs = System.nanoTime();
+            DeviceStatus s;
+            try {
+                s = e.getValue().ping();
+            } catch (Exception ex) {
+                s = new DeviceStatus();
+                s.setDeviceId(e.getKey());
+                s.setConnected(false);
+                s.setOpState(OpState.OFFLINE);
+                s.setLockState(LockState.UNLOCKED);
+                s.setLastErrorCode(ErrorCode.DEVICE_ERROR.name());
+                s.setLastErrorMessage("状态探测失败: " + ex.getMessage());
+            }
+            long rttMs = (System.nanoTime() - startNs) / 1_000_000L;
+            s.setRttMs(rttMs);
+            m.put(e.getKey(), s);
         }
         return m;
     }

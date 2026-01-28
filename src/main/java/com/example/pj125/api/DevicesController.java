@@ -27,8 +27,15 @@ public class DevicesController {
 
     @GetMapping("/{deviceId}/status")
     public Ack<DeviceStatus> getStatus(@PathVariable String deviceId) {
-        Device d = device(deviceId);
-        return Ack.ok(d.status());
+        DeviceId id;
+        try {
+            id = DeviceId.valueOf(deviceId.toUpperCase());
+        } catch (Exception e) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, "deviceId只能为MAIN或RELAY");
+        }
+        DeviceStatus s = deviceManager.statuses().get(id);
+        if (s == null) throw new ApiException(ErrorCode.NOT_FOUND, "设备不存在: " + deviceId);
+        return Ack.ok(s);
     }
 
     @GetMapping("/{deviceId}/info")
