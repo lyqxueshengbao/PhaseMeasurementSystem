@@ -30,7 +30,7 @@ public class DevicesProperties {
          * Supported values:
          * <ul>
          *   <li>local-sim (default): in-process simulated device</li>
-         *   <li>host:port (reserved): future remote device agent endpoint</li>
+         *   <li>http://host:port (reserved): future remote device agent endpoint</li>
          * </ul>
          */
         private String endpoint = "local-sim";
@@ -44,4 +44,3 @@ public class DevicesProperties {
         }
     }
 }
-

@@ -85,12 +85,13 @@ mvn spring-boot:run
   - `pj125.devices.main.endpoint: local-sim`
   - `pj125.devices.relay.endpoint: local-sim`
 - `local-sim`：使用进程内模拟器（当前验收口径）
-- `host:port`：预留给未来的远程设备 Agent/HTTP 实现
-  - **注意：当前版本远程实现仅占位**，配置为 `host:port` 会走占位实现并导致设备呈现为**离线/不可连接（例如返回 `DEVICE_OFFLINE`）**，用于尽早暴露配置错误；不影响本轮验收流程
+- `http://host:port`：预留给未来的远程设备 Agent（HTTP）实现（MAIN/RELAY 各起一个 Agent）
+  - Agent 接口约定见 `docs/DEVICE_AGENT_HTTP.md`
+  - **注意：当前版本远程实现仅占位**，配置为 `http://host:port` 会走占位实现并导致设备呈现为**离线/不可连接（例如返回 `DEVICE_OFFLINE`）**，用于尽早暴露配置错误；不影响本轮验收流程
 
-## DDS（仅主站 MAIN）配置说明
+## DDS 控制字（由 FPGA/总控执行，仅主站 MAIN 生效）
 
-新增 `DeviceConfig.ddsFreqHz`（单位 Hz）作为 DDS 输出频率控制字：
+新增 `DeviceConfig.ddsFreqHz`（单位 Hz）作为 DDS 频率控制字（上位机下发给 FPGA/总控；不模拟独立 DDS 硬件信号生成）：
 - 仅对主站 `MAIN` 生效；`RELAY` 即使在 `relayConfig.ddsFreqHz` 中填写也会被忽略，但不会报错
 - 生效证据（验收可回读）：每次 run 的 `APPLY_RECIPE` 完成后，会把两台设备的 `readbackConfig()` 快照写入 `./data/runs/{runId}/run_info.json`：
   - `mainAppliedConfig.ddsFreqHz`
@@ -100,7 +101,7 @@ mvn spring-boot:run
 ```bash
 curl -X POST http://localhost:8080/api/recipes ^
   -H "Content-Type: application/json" ^
-  -d "{\"recipeId\":\"RCP-DDS-DEMO\",\"name\":\"DDS demo (MAIN only)\",\"mainConfig\":{\"txEnable\":true,\"ddsFreqHz\":10000000.0,\"referencePathDelayNs\":120.0,\"measurePathDelayNs\":180.0},\"relayConfig\":{\"txEnable\":true,\"ddsFreqHz\":123.0,\"referencePathDelayNs\":95.0,\"measurePathDelayNs\":130.0},\"linkModel\":{\"fixedLinkDelayNs\":800.0,\"driftPpm\":0.2,\"noiseStdNs\":0.5,\"basePhaseDeg\":15.0},\"measurementPlan\":{\"modes\":[\"LINK\",\"MAIN_INTERNAL\",\"RELAY_INTERNAL\"],\"repeat\":2},\"simulatorProfile\":null}"
+  -d "{\"recipeId\":\"RCP-DDS-DEMO\",\"name\":\"DDS控制字 demo (MAIN only)\",\"mainConfig\":{\"txEnable\":true,\"ddsFreqHz\":10000000.0,\"referencePathDelayNs\":120.0,\"measurePathDelayNs\":180.0},\"relayConfig\":{\"txEnable\":true,\"ddsFreqHz\":123.0,\"referencePathDelayNs\":95.0,\"measurePathDelayNs\":130.0},\"linkModel\":{\"fixedLinkDelayNs\":800.0,\"driftPpm\":0.2,\"noiseStdNs\":0.5,\"basePhaseDeg\":15.0},\"measurementPlan\":{\"modes\":[\"LINK\",\"MAIN_INTERNAL\",\"RELAY_INTERNAL\"],\"repeat\":2},\"simulatorProfile\":null}"
 
 curl -X POST http://localhost:8080/api/runs ^
   -H "Content-Type: application/json" ^

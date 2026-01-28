@@ -60,13 +60,14 @@ function Subscribe-Sse([string]$runId, [int]$maxTimeSec = 180) {
   $outFile = Join-Path $outDir ("sse_{0}.txt" -f $runId)
   if (Test-Path $outFile) { Remove-Item $outFile -Force }
 
-  cmd /c "curl.exe -N --max-time $maxTimeSec http://localhost:8080/api/sse/runs/$runId 1> ""$outFile"" 2>&1" | Out-Null
+  cmd /c "curl.exe -sS -N --no-progress-meter --max-time $maxTimeSec http://localhost:8080/api/sse/runs/$runId 1> ""$outFile"" 2>&1" | Out-Null
   return @{ file = $outFile; exit = $LASTEXITCODE }
 }
 
 function Parse-SseSeq([string]$path) {
   $seqs = New-Object System.Collections.Generic.List[long]
   $lastType = $null
+  $pendingData = $false
   foreach ($lineRaw in Get-Content -LiteralPath $path -ErrorAction Stop) {
     $line = $lineRaw.Trim()
     if ($line -like 'data:*') {
@@ -77,7 +78,17 @@ function Parse-SseSeq([string]$path) {
           if ($o.seq) { $seqs.Add([long]$o.seq) | Out-Null }
           $lastType = $o.type
         } catch {}
+        $pendingData = $false
+      } else {
+        $pendingData = $true
       }
+    } elseif ($pendingData -and $line.StartsWith('{')) {
+      try {
+        $o = $line | ConvertFrom-Json
+        if ($o.seq) { $seqs.Add([long]$o.seq) | Out-Null }
+        $lastType = $o.type
+      } catch {}
+      $pendingData = $false
     }
   }
   $mono = $true
@@ -161,6 +172,12 @@ if ($StartServer) {
 
 try {
   Assert (Wait-Http 'http://localhost:8080/ui/devices' 240) 'Server not ready on http://localhost:8080'
+
+  # Heartbeat smoke: /api/devices should include rttMs for MAIN/RELAY (nullable, but field must exist)
+  $dev = Get-Utf8Json 'http://localhost:8080/api/devices'
+  Assert ($dev.success -eq $true -and $dev.code -eq 'OK') '/api/devices must be success=true code=OK'
+  Assert (($dev.data.MAIN.PSObject.Properties.Name -contains 'rttMs') -and ($dev.data.RELAY.PSObject.Properties.Name -contains 'rttMs')) 'DeviceStatus must include rttMs'
+  Write-Output ("[PING] MAIN.rttMs={0} RELAY.rttMs={1}" -f $dev.data.MAIN.rttMs, $dev.data.RELAY.rttMs)
 
   # Create/overwrite 4 recipes (DEFAULT/B/C/D) for deterministic acceptance checks.
   $base = @{

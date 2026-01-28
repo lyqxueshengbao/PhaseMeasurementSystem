@@ -45,7 +45,7 @@ function Subscribe-Sse([string]$runId, [int]$maxTimeSec = 120) {
   New-Item -ItemType Directory -Force -Path $outDir | Out-Null
   $outFile = Join-Path $outDir ("sse_dds_{0}.txt" -f $runId)
   if (Test-Path $outFile) { Remove-Item $outFile -Force }
-  cmd /c "curl.exe -N --max-time $maxTimeSec http://localhost:8080/api/sse/runs/$runId 1> ""$outFile"" 2>&1" | Out-Null
+  cmd /c "curl.exe -sS -N --no-progress-meter --max-time $maxTimeSec http://localhost:8080/api/sse/runs/$runId 1> ""$outFile"" 2>&1" | Out-Null
   return @{ file = $outFile; exit = $LASTEXITCODE }
 }
 
