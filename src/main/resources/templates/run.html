@@ -40,19 +40,20 @@
 <div class="grid" style="margin-top:12px;">
     <div class="card">
         <div style="font-weight:700;margin-bottom:8px;">实时日志（SSE）</div>
-        <div id="log" class="log"></div>
+        <pre id="log" class="log"></pre>
     </div>
     <div class="card">
         <div style="font-weight:700;margin-bottom:8px;">测量结果（每次repeat一条）</div>
         <table>
             <thead>
             <tr>
-                <th>mode</th>
-                <th>repeatIndex</th>
-                <th>delayNs(ns)</th>
-                <th>phaseDeg(deg)</th>
-                <th>confidence</th>
-                <th>qualityFlag</th>
+                <th>模式</th>
+                <th>次数</th>
+                <th>时延(ps)</th>
+                <th>相位(°)</th>
+                <th>置信度</th>
+                <th>质量</th>
+                <th>标准差σ(ps)</th>
             </tr>
             </thead>
             <tbody id="resultsBody"></tbody>
@@ -82,8 +83,20 @@
 
     function appendLog(line) {
         const log = document.getElementById('log');
-        log.textContent += line + "\\n";
+        const s = normalizeNewlines(line);
+        log.textContent += s;
+        if (!s.endsWith('\n')) log.textContent += "\n";
         log.scrollTop = log.scrollHeight;
+    }
+
+    function normalizeNewlines(s) {
+        if (s === null || s === undefined) return '';
+        return String(s)
+            .replace(/\\r\\n/g, '\n')
+            .replace(/\\n/g, '\n')
+            .replace(/\/n/g, '\n')
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n');
     }
 
     function qualityClass(q) {
@@ -94,18 +107,43 @@
         return 'badge';
     }
 
+    function modeLabel(mode) {
+        if (mode === 'LINK') return '链路(LINK)';
+        if (mode === 'MAIN_INTERNAL') return '主站内环(MAIN_INTERNAL)';
+        if (mode === 'RELAY_INTERNAL') return '转发站内环(RELAY_INTERNAL)';
+        return mode || '-';
+    }
+
+    function fmt(v, digits) {
+        if (v === null || v === undefined) return '-';
+        const n = Number(v);
+        if (!Number.isFinite(n)) return '-';
+        if (digits === undefined || digits === null) return String(n);
+        return n.toFixed(digits);
+    }
+
+    function nsToPs(ns) {
+        const n = Number(ns);
+        if (!Number.isFinite(n)) return null;
+        return n * 1000.0;
+    }
+
     function renderResults() {
         const tbody = document.getElementById('resultsBody');
         tbody.innerHTML = '';
         results.forEach(r => {
             const tr = document.createElement('tr');
+            const delayPs = nsToPs(r.delayNs);
+            const stdNs = r.explain && r.explain.mcStdDelayNs !== undefined ? r.explain.mcStdDelayNs : null;
+            const stdPs = nsToPs(stdNs);
             tr.innerHTML = `
-              <td>${r.mode}</td>
-              <td>${r.repeatIndex}</td>
-              <td>${r.delayNs}</td>
-              <td>${r.phaseDeg}</td>
-              <td>${r.confidence}</td>
-              <td><span class="${qualityClass(r.qualityFlag)}">${r.qualityFlag}</span></td>`;
+              <td>${modeLabel(r.mode)}</td>
+              <td>${fmt(r.repeatIndex, 0)}</td>
+              <td>${fmt(delayPs, 3)}</td>
+              <td>${fmt(r.phaseDeg, 3)}</td>
+              <td>${fmt(r.confidence, 3)}</td>
+              <td><span class="${qualityClass(r.qualityFlag)}">${r.qualityFlag}</span></td>
+              <td>${fmt(stdPs, 3)}</td>`;
             tbody.appendChild(tr);
         });
     }
@@ -156,7 +194,7 @@
         es.addEventListener('LOG', ev => {
             const env = JSON.parse(ev.data);
             const p = env.payload || {};
-            appendLog(`[${env.seq}] ${p.step || '-'} ${p.message}`);
+            appendLog(`[${env.seq}] ${p.step || '-'} ${normalizeNewlines(p.message)}`);
         });
         es.addEventListener('STEP', ev => {
             const env = JSON.parse(ev.data);
@@ -199,7 +237,7 @@
             const p = env.payload || {};
             setBadge('state', 'FAILED', 'badge bad');
             setBadge('step', 'FAILED', 'badge bad');
-            appendLog(`[FAILED] ${p.errorCode || ''} ${p.message || ''}`);
+            appendLog(`[FAILED] ${p.errorCode || ''} ${normalizeNewlines(p.message || '')}`);
             try {
                 const res = await fetch(`/api/runs/${runId}/atmospheric_delay`);
                 const body = await res.json();

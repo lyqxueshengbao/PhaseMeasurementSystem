@@ -13,7 +13,7 @@ textarea { width: 100%; min-height: 340px; font-family: ui-monospace, "SFMono-Re
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #e6e8ef; padding: 6px 8px; text-align: left; }
 .muted { color: #5b6476; font-size: 12px; }
-.log { width: 100%; min-height: 240px; max-height: 360px; overflow: auto; background: #0b1020; color: #e8ecff; padding: 10px; border-radius: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+.log { width: 100%; min-height: 240px; max-height: 360px; overflow: auto; background: #0b1020; color: #e8ecff; padding: 10px; border-radius: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #eef2ff; border: 1px solid #d9dde5; }
 .ok { background: #ecfdf3; border-color: #a6f4c5; }
 .warn { background: #fffaeb; border-color: #fedf89; }
