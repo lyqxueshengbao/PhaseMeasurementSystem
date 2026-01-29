@@ -135,6 +135,13 @@
         return n * 1000.0;
     }
 
+    function fmtFreqHz(hz) {
+        const n = Number(hz);
+        if (!Number.isFinite(n)) return '-';
+        if (n >= 1e9) return (n / 1e9).toFixed(6).replace(/\.?0+$/, '') + ' GHz';
+        return (n / 1e6).toFixed(6).replace(/\.?0+$/, '') + ' MHz';
+    }
+
     function renderResults() {
         const tbody = document.getElementById('resultsBody');
         tbody.innerHTML = '';
@@ -451,7 +458,7 @@
             const body = await res.json();
             const cfg = (body.data || {}).mainAppliedConfig || {};
             const hz = cfg.ddsFreqHz;
-            document.getElementById('mainDds').textContent = (hz === null || hz === undefined) ? '-' : hz;
+            document.getElementById('mainDds').textContent = (hz === null || hz === undefined) ? '-' : fmtFreqHz(hz);
             const status = (body.data || {}).status;
             if (status) {
                 if (status === 'SUCCEEDED') setBadge('state', status, 'badge ok');

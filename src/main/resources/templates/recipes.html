@@ -30,19 +30,173 @@
         </div>
         <div class="muted" style="margin-top:10px;">
             提示：此页采用“JSON编辑”方式，字段名严格对齐后端领域模型。
-            （新增：`mainConfig.ddsFreqHz` 支持 DDS 频率控制字（下发给 FPGA/总控），单位 Hz，仅主站 MAIN 生效；relayConfig 同字段会被忽略但不报错。）
+            （新增：`mainConfig.ddsFreqHz` 支持 DDS 频率控制字（下发给 FPGA/总控），单位 Hz，仅主站 MAIN 生效；relayConfig 同字段会被忽略但不报错。表单里可用 MHz/GHz 输入，保存时会换算成 Hz 写入 JSON。）
         </div>
     </div>
 
     <div class="card">
         <div class="row" style="justify-content: space-between;">
-            <div style="font-weight:700;">配方JSON</div>
+            <div style="font-weight:700;">配方编辑</div>
             <div class="row">
                 <button class="primary" onclick="saveRecipe()">保存/覆盖</button>
                 <button onclick="formatJson()">格式化</button>
+                <button onclick="syncFormFromJson()">JSON→表单</button>
             </div>
         </div>
-        <textarea id="recipeJson"></textarea>
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
+            <div>
+                <div style="font-weight:700;margin-bottom:8px;">表单编辑（中文）</div>
+
+                <div class="card" style="background:#fff;">
+                    <div class="row">
+                        <div style="min-width:110px;">配方ID <span class="muted">(recipeId)</span></div>
+                        <input id="f_recipeId" style="flex:1;min-width:220px;"/>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">名称 <span class="muted">(name)</span></div>
+                        <input id="f_name" style="flex:1;min-width:220px;"/>
+                    </div>
+                </div>
+
+                <div style="font-weight:700;margin-top:12px;">主站 MAIN 配置</div>
+                <div class="card" style="background:#fff;margin-top:8px;">
+                    <div class="row">
+                        <div style="min-width:110px;">发射使能 <span class="muted">(txEnable)</span></div>
+                        <input id="f_main_txEnable" type="checkbox"/>
+                        <div class="muted">发射使能</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">DDS频率 <span class="muted">(ddsFreqHz)</span></div>
+                        <input id="f_main_ddsFreqHz" type="number" step="0.000001" placeholder="800" style="flex:1;min-width:120px;"/>
+                        <select id="f_main_ddsUnit" style="min-width:90px;">
+                            <option value="MHz">MHz</option>
+                            <option value="GHz">GHz</option>
+                        </select>
+                        <div class="muted">DDS控制字（仅 MAIN 生效）</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">参考通道时延 <span class="muted">(referencePathDelayNs)</span></div>
+                        <input id="f_main_refNs" type="number" step="0.0001" style="flex:1;min-width:180px;"/>
+                        <div class="muted">ns</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">测量通道时延 <span class="muted">(measurePathDelayNs)</span></div>
+                        <input id="f_main_measNs" type="number" step="0.0001" style="flex:1;min-width:180px;"/>
+                        <div class="muted">ns</div>
+                    </div>
+                </div>
+
+                <div style="font-weight:700;margin-top:12px;">转发站 RELAY 配置</div>
+                <div class="card" style="background:#fff;margin-top:8px;">
+                    <div class="row">
+                        <div style="min-width:110px;">发射使能 <span class="muted">(txEnable)</span></div>
+                        <input id="f_relay_txEnable" type="checkbox"/>
+                        <div class="muted">发射使能</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">DDS频率 <span class="muted">(ddsFreqHz)</span></div>
+                        <input id="f_relay_ddsFreqHz" type="number" step="0.000001" placeholder="(可填，但会被忽略)" style="flex:1;min-width:120px;"/>
+                        <select id="f_relay_ddsUnit" style="min-width:90px;">
+                            <option value="MHz">MHz</option>
+                            <option value="GHz">GHz</option>
+                        </select>
+                        <div class="muted">DDS控制字（RELAY 会忽略，但不报错）</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">参考通道时延 <span class="muted">(referencePathDelayNs)</span></div>
+                        <input id="f_relay_refNs" type="number" step="0.0001" style="flex:1;min-width:180px;"/>
+                        <div class="muted">ns</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">测量通道时延 <span class="muted">(measurePathDelayNs)</span></div>
+                        <input id="f_relay_measNs" type="number" step="0.0001" style="flex:1;min-width:180px;"/>
+                        <div class="muted">ns</div>
+                    </div>
+                </div>
+
+                <div style="font-weight:700;margin-top:12px;">链路模型 linkModel</div>
+                <div class="card" style="background:#fff;margin-top:8px;">
+                    <div class="row">
+                        <div style="min-width:110px;">固定链路时延 <span class="muted">(fixedLinkDelayNs)</span></div>
+                        <input id="f_link_fixedNs" type="number" step="0.0001" style="flex:1;min-width:180px;"/>
+                        <div class="muted">ns</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">漂移系数 <span class="muted">(driftPpm)</span></div>
+                        <input id="f_link_driftPpm" type="number" step="0.0001" style="flex:1;min-width:180px;"/>
+                        <div class="muted">ppm</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">噪声标准差 <span class="muted">(noiseStdNs)</span></div>
+                        <input id="f_link_noiseStdNs" type="number" step="0.0001" style="flex:1;min-width:180px;"/>
+                        <div class="muted">ns</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">基准相位 <span class="muted">(basePhaseDeg)</span></div>
+                        <input id="f_link_basePhaseDeg" type="number" step="0.0001" style="flex:1;min-width:180px;"/>
+                        <div class="muted">deg</div>
+                    </div>
+                </div>
+
+                <div style="font-weight:700;margin-top:12px;">测量计划 measurementPlan</div>
+                <div class="card" style="background:#fff;margin-top:8px;">
+                    <div class="row">
+                        <div style="min-width:110px;">重复次数 <span class="muted">(repeat)</span></div>
+                        <input id="f_plan_repeat" type="number" step="1" min="1" style="flex:1;min-width:180px;"/>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">测量模式 <span class="muted">(modes)</span></div>
+                        <label><input id="f_mode_link" type="checkbox"/> LINK</label>
+                        <label><input id="f_mode_main" type="checkbox"/> MAIN_INTERNAL</label>
+                        <label><input id="f_mode_relay" type="checkbox"/> RELAY_INTERNAL</label>
+                    </div>
+                    <div class="muted" style="margin-top:8px;">
+                        提示：如果只选 LINK，SUMMARY 可能因为缺少 MAIN/RELAY_INTERNAL 而失败（符合 SPEC 的失败口径）。
+                    </div>
+                </div>
+
+                <div style="font-weight:700;margin-top:12px;">模拟器注入 simulatorProfile（可选）</div>
+                <div class="card" style="background:#fff;margin-top:8px;">
+                    <div class="row">
+                        <div style="min-width:110px;">启用 <span class="muted">(simulatorProfile)</span></div>
+                        <input id="f_sim_enable" type="checkbox"/>
+                        <div class="muted">不启用则 simulatorProfile=null</div>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">Apply延迟 <span class="muted">(applyDelayMs)</span></div>
+                        <input id="f_sim_applyDelayMs" type="number" step="1" style="flex:1;min-width:180px;"/>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">锁定耗时 <span class="muted">(lockTimeMs)</span></div>
+                        <input id="f_sim_lockTimeMs" type="number" step="1" style="flex:1;min-width:180px;"/>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">测量耗时 <span class="muted">(measurementTimeMs)</span></div>
+                        <input id="f_sim_measurementTimeMs" type="number" step="1" style="flex:1;min-width:180px;"/>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">故障类型 <span class="muted">(faultType)</span></div>
+                        <select id="f_sim_faultType" style="flex:1;min-width:200px;">
+                            <option value="">(不设置)</option>
+                            <option value="NONE">NONE</option>
+                            <option value="LOCK_TIMEOUT">LOCK_TIMEOUT</option>
+                            <option value="DEVICE_BUSY">DEVICE_BUSY</option>
+                            <option value="RANDOM_LOST_LOCK">RANDOM_LOST_LOCK</option>
+                        </select>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <div style="min-width:110px;">失锁概率 <span class="muted">(randomLostLockProbability)</span></div>
+                        <input id="f_sim_randomLostLockProbability" type="number" step="0.0001" min="0" max="1" style="flex:1;min-width:180px;"/>
+                        <div class="muted">0~1</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div style="font-weight:700;margin-bottom:8px;">Advanced: JSON Editor</div>
+                <textarea id="recipeJson"></textarea>
+            </div>
+        </div>
         <div id="msg" class="muted" style="margin-top:8px;"></div>
     </div>
 </div>
@@ -51,8 +205,8 @@
     const defaultRecipe = {
         recipeId: "RCP-NEW",
         name: "新建配方",
-        mainConfig: {txEnable: true, referencePathDelayNs: 120.0, measurePathDelayNs: 180.0},
-        relayConfig: {txEnable: true, referencePathDelayNs: 95.0, measurePathDelayNs: 130.0},
+        mainConfig: {txEnable: true, ddsFreqHz: null, referencePathDelayNs: 120.0, measurePathDelayNs: 180.0},
+        relayConfig: {txEnable: true, ddsFreqHz: null, referencePathDelayNs: 95.0, measurePathDelayNs: 130.0},
         linkModel: {fixedLinkDelayNs: 800.0, driftPpm: 0.2, noiseStdNs: 0.5, basePhaseDeg: 15.0},
         measurementPlan: {modes: ["LINK", "MAIN_INTERNAL", "RELAY_INTERNAL"], repeat: 8},
         simulatorProfile: null
@@ -60,9 +214,201 @@
 
     function setMsg(text) { document.getElementById('msg').textContent = text; }
 
+    function deepClone(obj) {
+        return JSON.parse(JSON.stringify(obj));
+    }
+
+    function safeParseJson(text) {
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function setTextareaFromObj(obj) {
+        document.getElementById('recipeJson').value = JSON.stringify(obj, null, 2);
+    }
+
+    function setInputValue(id, v) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = (v === null || v === undefined) ? '' : String(v);
+    }
+
+    function setCheckbox(id, checked) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.checked = !!checked;
+    }
+
+    function setSelectValue(id, v) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = v;
+    }
+
+    function numOrDefault(s, def, allowNull) {
+        if (s === null || s === undefined) return allowNull ? null : def;
+        const t = String(s).trim();
+        if (t === '') return allowNull ? null : def;
+        const n = Number(t);
+        if (!Number.isFinite(n)) return allowNull ? null : def;
+        return n;
+    }
+
+    function setFreqFields(prefix, hz) {
+        const valueId = prefix === 'main' ? 'f_main_ddsFreqHz' : 'f_relay_ddsFreqHz';
+        const unitId = prefix === 'main' ? 'f_main_ddsUnit' : 'f_relay_ddsUnit';
+        if (hz === null || hz === undefined) {
+            setInputValue(valueId, '');
+            setSelectValue(unitId, 'MHz');
+            return;
+        }
+        const n = Number(hz);
+        if (!Number.isFinite(n) || n <= 0) {
+            setInputValue(valueId, '');
+            setSelectValue(unitId, 'MHz');
+            return;
+        }
+        if (n >= 1e9) {
+            setSelectValue(unitId, 'GHz');
+            setInputValue(valueId, (n / 1e9));
+        } else {
+            setSelectValue(unitId, 'MHz');
+            setInputValue(valueId, (n / 1e6));
+        }
+    }
+
+    function readFreqHz(prefix) {
+        const valueId = prefix === 'main' ? 'f_main_ddsFreqHz' : 'f_relay_ddsFreqHz';
+        const unitId = prefix === 'main' ? 'f_main_ddsUnit' : 'f_relay_ddsUnit';
+        const vRaw = (document.getElementById(valueId).value || '').trim();
+        if (vRaw === '') return null;
+        const v = Number(vRaw);
+        if (!Number.isFinite(v) || v <= 0) return null;
+        const unit = (document.getElementById(unitId).value || 'MHz').trim();
+        if (unit === 'GHz') return v * 1e9;
+        return v * 1e6;
+    }
+
+    function setFormFromObj(obj) {
+        const r = obj || deepClone(defaultRecipe);
+        setInputValue('f_recipeId', r.recipeId);
+        setInputValue('f_name', r.name);
+
+        const main = r.mainConfig || {};
+        setCheckbox('f_main_txEnable', main.txEnable !== false);
+        setFreqFields('main', main.ddsFreqHz);
+        setInputValue('f_main_refNs', main.referencePathDelayNs);
+        setInputValue('f_main_measNs', main.measurePathDelayNs);
+
+        const relay = r.relayConfig || {};
+        setCheckbox('f_relay_txEnable', relay.txEnable !== false);
+        setFreqFields('relay', relay.ddsFreqHz);
+        setInputValue('f_relay_refNs', relay.referencePathDelayNs);
+        setInputValue('f_relay_measNs', relay.measurePathDelayNs);
+
+        const link = r.linkModel || {};
+        setInputValue('f_link_fixedNs', link.fixedLinkDelayNs);
+        setInputValue('f_link_driftPpm', link.driftPpm);
+        setInputValue('f_link_noiseStdNs', link.noiseStdNs);
+        setInputValue('f_link_basePhaseDeg', link.basePhaseDeg);
+
+        const plan = r.measurementPlan || {};
+        setInputValue('f_plan_repeat', plan.repeat);
+        const modes = Array.isArray(plan.modes) ? plan.modes.map(x => String(x)) : [];
+        setCheckbox('f_mode_link', modes.includes('LINK'));
+        setCheckbox('f_mode_main', modes.includes('MAIN_INTERNAL'));
+        setCheckbox('f_mode_relay', modes.includes('RELAY_INTERNAL'));
+
+        const sim = r.simulatorProfile;
+        setCheckbox('f_sim_enable', !!sim);
+        setInputValue('f_sim_applyDelayMs', sim ? sim.applyDelayMs : '');
+        setInputValue('f_sim_lockTimeMs', sim ? sim.lockTimeMs : '');
+        setInputValue('f_sim_measurementTimeMs', sim ? sim.measurementTimeMs : '');
+        setInputValue('f_sim_randomLostLockProbability', sim ? sim.randomLostLockProbability : '');
+        const fault = sim ? sim.faultType : '';
+        document.getElementById('f_sim_faultType').value = fault ? String(fault) : '';
+    }
+
+    function buildObjFromForm(baseObj) {
+        const obj = baseObj ? deepClone(baseObj) : {};
+        obj.recipeId = (document.getElementById('f_recipeId').value || '').trim();
+        obj.name = (document.getElementById('f_name').value || '').trim();
+
+        obj.mainConfig = obj.mainConfig || {};
+        obj.mainConfig.txEnable = !!document.getElementById('f_main_txEnable').checked;
+        obj.mainConfig.ddsFreqHz = readFreqHz('main');
+        obj.mainConfig.referencePathDelayNs = numOrDefault(document.getElementById('f_main_refNs').value, 0.0, false);
+        obj.mainConfig.measurePathDelayNs = numOrDefault(document.getElementById('f_main_measNs').value, 0.0, false);
+
+        obj.relayConfig = obj.relayConfig || {};
+        obj.relayConfig.txEnable = !!document.getElementById('f_relay_txEnable').checked;
+        obj.relayConfig.ddsFreqHz = readFreqHz('relay');
+        obj.relayConfig.referencePathDelayNs = numOrDefault(document.getElementById('f_relay_refNs').value, 0.0, false);
+        obj.relayConfig.measurePathDelayNs = numOrDefault(document.getElementById('f_relay_measNs').value, 0.0, false);
+
+        obj.linkModel = obj.linkModel || {};
+        obj.linkModel.fixedLinkDelayNs = numOrDefault(document.getElementById('f_link_fixedNs').value, 0.0, false);
+        obj.linkModel.driftPpm = numOrDefault(document.getElementById('f_link_driftPpm').value, 0.0, false);
+        obj.linkModel.noiseStdNs = numOrDefault(document.getElementById('f_link_noiseStdNs').value, 0.0, false);
+        obj.linkModel.basePhaseDeg = numOrDefault(document.getElementById('f_link_basePhaseDeg').value, 0.0, false);
+
+        obj.measurementPlan = obj.measurementPlan || {};
+        obj.measurementPlan.repeat = Math.max(1, Math.floor(numOrDefault(document.getElementById('f_plan_repeat').value, 1, false)));
+        const modes = [];
+        if (document.getElementById('f_mode_link').checked) modes.push('LINK');
+        if (document.getElementById('f_mode_main').checked) modes.push('MAIN_INTERNAL');
+        if (document.getElementById('f_mode_relay').checked) modes.push('RELAY_INTERNAL');
+        obj.measurementPlan.modes = modes;
+
+        if (document.getElementById('f_sim_enable').checked) {
+            obj.simulatorProfile = obj.simulatorProfile || {};
+            obj.simulatorProfile.applyDelayMs = numOrDefault(document.getElementById('f_sim_applyDelayMs').value, null, true);
+            obj.simulatorProfile.lockTimeMs = numOrDefault(document.getElementById('f_sim_lockTimeMs').value, null, true);
+            obj.simulatorProfile.measurementTimeMs = numOrDefault(document.getElementById('f_sim_measurementTimeMs').value, null, true);
+            const ft = (document.getElementById('f_sim_faultType').value || '').trim();
+            obj.simulatorProfile.faultType = ft === '' ? null : ft;
+            obj.simulatorProfile.randomLostLockProbability = numOrDefault(document.getElementById('f_sim_randomLostLockProbability').value, null, true);
+        } else {
+            obj.simulatorProfile = null;
+        }
+
+        return obj;
+    }
+
+    let syncTimer = null;
+    function scheduleSyncJsonFromForm() {
+        if (syncTimer) clearTimeout(syncTimer);
+        syncTimer = setTimeout(syncJsonFromForm, 150);
+    }
+
+    function syncJsonFromForm() {
+        const base = safeParseJson(document.getElementById('recipeJson').value) || deepClone(defaultRecipe);
+        const obj = buildObjFromForm(base);
+        setTextareaFromObj(obj);
+    }
+
+    function syncFormFromJson() {
+        const obj = safeParseJson(document.getElementById('recipeJson').value);
+        if (!obj) {
+            setMsg('JSON解析失败：请先修正 JSON，再同步到表单');
+            return;
+        }
+        setFormFromObj(obj);
+        setMsg('已从 JSON 同步到表单');
+    }
+
     async function refreshList() {
-        const res = await fetch('/api/recipes');
-        const body = await res.json();
+        let body;
+        try {
+            const res = await fetch('/api/recipes');
+            body = await res.json();
+        } catch (e) {
+            setMsg('获取配方列表失败: ' + (e && e.message ? e.message : e));
+            return;
+        }
         const sel = document.getElementById('recipeSelect');
         sel.innerHTML = '';
         (body.data || []).forEach(id => {
@@ -79,19 +425,23 @@
         const res = await fetch(`/api/recipes/${id}`);
         const body = await res.json();
         if (!body.success) { setMsg(body.message); return; }
-        document.getElementById('recipeJson').value = JSON.stringify(body.data, null, 2);
+        setTextareaFromObj(body.data);
+        setFormFromObj(body.data);
         setMsg('已加载: ' + id);
     }
 
     function newRecipe() {
-        document.getElementById('recipeJson').value = JSON.stringify(defaultRecipe, null, 2);
+        const obj = deepClone(defaultRecipe);
+        setTextareaFromObj(obj);
+        setFormFromObj(obj);
         setMsg('已生成新建模板');
     }
 
     function formatJson() {
         try {
             const obj = JSON.parse(document.getElementById('recipeJson').value);
-            document.getElementById('recipeJson').value = JSON.stringify(obj, null, 2);
+            setTextareaFromObj(obj);
+            setFormFromObj(obj);
             setMsg('格式化完成');
         } catch (e) {
             setMsg('JSON解析失败: ' + e.message);
@@ -100,6 +450,8 @@
 
     async function saveRecipe() {
         try {
+            // Prefer form values (no need to mouse-select JSON). Also keeps JSON view in sync.
+            syncJsonFromForm();
             const obj = JSON.parse(document.getElementById('recipeJson').value);
             const res = await fetch('/api/recipes', {
                 method: 'POST',
@@ -125,7 +477,29 @@
         setMsg('已删除: ' + id);
     }
 
-    refreshList().then(loadRecipe);
+    function bindFormAutoSync() {
+        const ids = [
+            'f_recipeId', 'f_name',
+            'f_main_txEnable', 'f_main_ddsFreqHz', 'f_main_ddsUnit', 'f_main_refNs', 'f_main_measNs',
+            'f_relay_txEnable', 'f_relay_ddsFreqHz', 'f_relay_ddsUnit', 'f_relay_refNs', 'f_relay_measNs',
+            'f_link_fixedNs', 'f_link_driftPpm', 'f_link_noiseStdNs', 'f_link_basePhaseDeg',
+            'f_plan_repeat', 'f_mode_link', 'f_mode_main', 'f_mode_relay',
+            'f_sim_enable', 'f_sim_applyDelayMs', 'f_sim_lockTimeMs', 'f_sim_measurementTimeMs',
+            'f_sim_faultType', 'f_sim_randomLostLockProbability'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('input', scheduleSyncJsonFromForm);
+            el.addEventListener('change', scheduleSyncJsonFromForm);
+        });
+    }
+
+    refreshList().then(loadRecipe).then(() => {
+        bindFormAutoSync();
+        // Ensure form has something even when no recipe exists yet.
+        if (!document.getElementById('recipeJson').value.trim()) newRecipe();
+    });
 </script>
 </body>
 </html>
