@@ -89,6 +89,34 @@ mvn spring-boot:run
   - Agent 接口约定见 `docs/DEVICE_AGENT_HTTP.md`
   - **注意：当前版本远程实现仅占位**，配置为 `http://host:port` 会走占位实现并导致设备呈现为**离线/不可连接（例如返回 `DEVICE_OFFLINE`）**，用于尽早暴露配置错误；不影响本轮验收流程
 
+## 本地 MATLAB Engine（可选）
+
+用于“同机联动”快速验证：MATLAB 直接返回每次 repeat 的 `delayNs/phaseDeg`（上位机不接收波形），保持现有编排/SSE/落盘口径不变。
+
+- 默认仍使用内置测量模拟器：`pj125.measurement.engine: simulated`
+- 可选切换为 MATLAB Engine：`pj125.measurement.engine: matlab-engine`
+  - Java 侧通过 MATLAB Engine for Java 反射调用 `matlab/pj125_measure_json.m`（返回 JSON：`delayNs/phaseDeg/...`）
+  - MATLAB 脚本目录（默认 repo 下 `./matlab`）：`pj125.measurement.matlabScriptDir: matlab`
+  - 模型选择（默认 `placeholder`）：
+    - `pj125.measurement.matlabModel: placeholder`：轻量模型（推荐先跑通）
+    - `pj125.measurement.matlabModel: signal4_6G_mc`：LINK 模式使用更重的“链路风格 + Monte Carlo”模型（会非常慢）
+  - Monte Carlo 次数：`pj125.measurement.matlabMonteCarloT: 2000`
+  - `f0` 映射：当 `mainConfig.ddsFreqHz` 有值时，MATLAB 侧将其作为载波/ DDS 输出频率（Hz）；未填写则默认 `0.8e9`
+  - `signal4_6G_mc` 附加回读：测量结果的 `explain` 会额外包含 `mcT/mcMeanDelayNs/mcStdDelayNs/f0Hz`
+  - 未安装/未配置 MATLAB Engine 时请勿启用该选项（会启动失败）
+
+Windows（示例：MATLAB 安装在 `D:\matlab R2022b`）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run-matlab-engine.ps1 -MatlabRoot "D:\matlab R2022b" -MatlabScriptDir "matlab"
+```
+
+启用重模型（LINK + Monte Carlo，示例）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run-matlab-engine.ps1 -MatlabRoot "D:\matlab R2022b" -MatlabScriptDir "matlab" -MatlabModel "signal4_6G_mc" -MatlabMonteCarloT 2000
+```
+
 ## DDS 控制字（由 FPGA/总控执行，仅主站 MAIN 生效）
 
 新增 `DeviceConfig.ddsFreqHz`（单位 Hz）作为 DDS 频率控制字（上位机下发给 FPGA/总控；不模拟独立 DDS 硬件信号生成）：

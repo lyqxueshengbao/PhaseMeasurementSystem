@@ -19,3 +19,8 @@ pj125:
       endpoint: local-sim
     relay:
       endpoint: local-sim
+  measurement:
+    engine: simulated
+    matlabScriptDir: matlab
+    matlabModel: placeholder
+    matlabMonteCarloT: 2000
